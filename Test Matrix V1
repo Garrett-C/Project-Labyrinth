@@ -1,0 +1,143 @@
+#include<Wire.h>
+#include <math.h>
+#include <VL53L0X.h>
+
+//VL53L0X
+VL53L0X sensor1;
+VL53L0X sensor2;
+const int XSHUT1 = 5;
+const int XSHUT2 = 6;
+#define Sensor1_Address 42
+#define Sensor2_Address 43
+
+//A4988
+int Step_A = 11;    // motor A step pin
+int Dir_A = 10;     // Motor A Direction pin
+int Step_B = 3;     // motor B step pin
+int Dir_B = 2;      // Motor B Direction pin
+
+int value = 0;
+int Index;
+char Selection;
+int SensorValue;
+
+
+// 8x16 Array in Binary
+int Array [8][16] = {
+  {B01000000, B00100000,  B00100000,  B01100000,  B01100000,  B00110000,  B01100000,  B01110000,  B01010000,  B00010100,  B01000011,  B01010000,  B01010000,  B00010010,  B00010000,  B10100000},
+  {B01000000, B01100000,  B10010110,  B01000001,  B10110000,  B10100000,  B10000010,  B11100000,  B01010000,  B01010000,  B00011010,  B01100000,  B00010100,  B00001101,  B01000011,  B10010000},
+  {B01000000, B11100000,  B01011000,  B00100000,  B10000010,  B10000110,  B00101001,  B10100000,  B00010000,  B00010000,  B00101100,  B10000001,  B00100100,  B01000001,  B00111000,  B00010000},
+  {B01100000, B01010000,  B00010000,  B10000100,  B00001101,  B01001001,  B10010000,  B11000000,  B00110000,  B00010010,  B11000000,  B01010000,  B10010000,  B01001000,  B11000000,  B00110000},
+  {B10000110, B01000001,  B00010100,  B01000011,  B01010000,  B01010000,  B01010000,  B00110000,  B11100000,  B00010100,  B01000001,  B00010010,  B01100000,  B01010000,  B01010000,  B10010010},
+  {B00001110, B01000001,  B01110000,  B01111000,  B01010000,  B01010000,  B01010000,  B10010000,  B10100000,  B01100000,  B00100100,  B00101001,  B10100000,  B01100000,  B00010100,  B00101001},
+  {B00001110, B01000001,  B10110000,  B11000000,  B01010000,  B01010010,  B00110000,  B10000000,  B10000010,  B10100000,  B10100000,  B11000010,  B10010110,  B10000001,  B01100000,  B10100000},
+  {B01001000, B01010000,  B11010000,  B01010000,  B00010100,  B01001001,  B11010000,  B00010100,  B01001001,  B01010000,  B10010100,  B01001001,  B01011000,  B01010000,  B01010000,  B10010000},
+};
+
+// Other Variables (Experimental)
+int Direction = 1;  // North, 2; East, 1; South, 0; West, -1
+int Location [2] = {6, 2};
+
+
+void setup() {
+
+  pinMode(XSHUT1, OUTPUT);
+  pinMode(XSHUT2, OUTPUT);
+  Serial.begin(9600);
+
+  //VL53L0X
+
+  pinMode(XSHUT1, INPUT);
+  delay(10);
+  sensor1.setAddress(Sensor1_Address);
+  pinMode(XSHUT2, INPUT);
+  delay(10);
+  sensor2.setAddress(Sensor2_Address);
+
+  sensor1.init();
+  sensor2.init();
+  sensor1.setTimeout(500);
+  sensor2.setTimeout(500);
+
+  sensor1.startContinuous();
+  sensor2.startContinuous();
+
+  //STEPPER MOTORS
+  pinMode(Step_A, OUTPUT);
+  pinMode(Dir_A, OUTPUT);
+  pinMode(Step_B, OUTPUT);
+  pinMode(Dir_B, OUTPUT);
+}
+
+void loop() {
+
+
+
+}
+
+
+void turnRight(int Mot_Dir, int Mot_Step, int spd) {
+  digitalWrite( Mot_Dir, HIGH);
+  for (int i = 0; i <= 3000; i++) {
+    digitalWrite(Mot_Step, HIGH);
+    delayMicroseconds(spd);
+    digitalWrite(Mot_Step, LOW);
+  }
+  //Direction Change Right
+  if (Direction == -1) {
+    Direction = 2;
+  }
+  else {
+    Direction--;
+  }
+}
+
+void turnLeft(int Mot_Dir, int Mot_Step, int spd) {
+  digitalWrite( Mot_Dir, LOW);
+  for (int i = 0; i <= 3000; i++) {
+    digitalWrite(Mot_Step, HIGH);
+    delayMicroseconds(spd);
+    digitalWrite(Mot_Step, LOW);
+  }
+  //Direction Change Left
+  if (Direction == 2) {
+    Direction = -1;
+  }
+  else {
+    Direction++;
+  }
+}
+
+void Forward() {
+  if ((Direction % 2) == 0) { // Vertical Direction
+    if (Direction == 0) { // South Facing
+      Location[1]++;
+    }
+    else { // North Facing
+      Location[1]--;
+    }
+  }
+  else { //Horizontal Direction
+    Location[0] = (Location[0] + (Direction % 2));  // (Direction % 2) = 1 when going East, and -1 when going West
+  }
+
+  // Following two lines might work better than previous if statements if space is limited
+  //Location[0] = (Location[0] + Direction%2);
+  //Location[1] = (Location[1] - ((Direction - 1)*(Direction % 2 + 1)));
+}
+
+
+void displayVL53L0X() {
+  //digitalWrite(XSHUT2,LOW);
+  for (int i = 0; i <= 300; i++) {
+    Serial.println((String)"Distance 1: " + sensor1.readRangeContinuousMillimeters() + (String)" mm");
+    if (sensor1.timeoutOccurred()) Serial.print(" TIMEOUT");
+  }
+  //digitalWrite(XSHUT2,HIGH);
+  for (int i = 0; i <= 300; i++) {
+    //digitalWrite(XSHUT1,LOW);
+    Serial.println((String)"Distance 2: " + sensor2.readRangeContinuousMillimeters() + (String)" mm");
+    if (sensor2.timeoutOccurred()) Serial.print(" TIMEOUT");
+    //digitalWrite(XSHUT1,HIGH);
+  }
+}
